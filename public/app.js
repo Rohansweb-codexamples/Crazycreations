@@ -24,7 +24,7 @@ function showPage(id){
  window.scrollTo(0,0);
 }
 function card(p){
- const image=p.imageUrl?'<img src="'+esc(p.imageUrl)+'" alt="'+esc(p.title)+'" loading="lazy" onerror="this.style.display=\\'none\\'">':'<div class="image-placeholder">C</div>';
+ const image=p.imageUrl?'<img src="'+esc(p.imageUrl)+'" alt="'+esc(p.title)+'" loading="lazy">':'<div class="image-placeholder">C</div>';
  return '<article class="product-card"><div class="product-image">'+image+'<span class="product-category">'+esc(p.category)+'</span></div><div class="product-info"><h3>'+esc(p.title)+'</h3><p>'+esc(p.description)+'</p><div class="product-buy"><div><div class="product-price">'+money(p.price)+'</div><div class="stock-note">'+(p.stock>0?(p.stock<5?"Only "+p.stock+" left":"In stock"):"Out of stock")+'</div></div><button class="add-btn" data-add="'+p.id+'" '+(p.stock<1?"disabled":"")+'>'+(p.stock>0?"Add to basket":"Sold out")+'</button></div></div></article>';
 }
 async function loadStore(){
