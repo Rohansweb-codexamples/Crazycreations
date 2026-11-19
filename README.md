@@ -23,7 +23,7 @@ Vercel's former Vercel Postgres product is no longer available for new projects;
 | `SESSION_SECRET` | Long random secret used to sign admin sessions |
 | `ADMIN_EMAIL` | Email address for the first admin account |
 | `ADMIN_PASSWORD` | Password for the first admin account |
-| `NODE_ENV` | Set to `production` on Vercel |
+Vercel sets `NODE_ENV=production` for production deployments automatically; you do not need to add it manually.
 
 The initial admin is inserted only if that email does not already exist. Changing `ADMIN_PASSWORD` later will not automatically change an existing admin's password.
 
