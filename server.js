@@ -45,6 +45,16 @@ async function initialiseDatabase() {
     for (const p of samples) await pool.query("INSERT INTO products(title,description,category,price,stock,image_url) VALUES($1,$2,$3,$4,$5,$6)", p);
   }
 }
+let databaseReady;
+function ensureDatabase(){
+  if(!databaseReady) databaseReady=initialiseDatabase();
+  return databaseReady;
+}
+app.use(async(_req,res,next)=>{
+  try{await ensureDatabase();next();}
+  catch(err){console.error("Database initialisation failed:",err);res.status(503).json({error:"The shop database is unavailable. Please try again shortly."});}
+});
+
 function requireAdmin(req,res,next){ if(!req.session.adminId) return res.status(401).json({error:"Please sign in to the admin area."}); next(); }
 function cleanText(value,max=500){ return String(value??"").trim().slice(0,max); }
 function validEmail(value){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
@@ -136,4 +146,8 @@ app.put("/api/admin/settings",requireAdmin,async(req,res)=>{
 app.use(express.static(path.join(__dirname,"public")));
 app.get("*",(_req,res)=>res.sendFile(path.join(__dirname,"public","index.html")));
 const port=process.env.PORT||3000;
-initialiseDatabase().then(()=>app.listen(port,()=>console.log("CrazyCreations running on "+port))).catch(err=>{console.error("Database startup failed:",err);process.exit(1);});
+if(require.main===module){
+  ensureDatabase().then(()=>app.listen(port,()=>console.log("CrazyCreations running on "+port)))
+    .catch(err=>{console.error("Database startup failed:",err);process.exit(1);});
+}
+module.exports=app;
