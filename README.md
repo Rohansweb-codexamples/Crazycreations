@@ -1,55 +1,46 @@
 # CrazyCreations
 
-A bright, responsive online shop with **pay on delivery only**, a private admin dashboard, shared orders and delivery tracking.
+CrazyCreations is a pay-on-delivery online shop with a customer storefront, order tracking and a protected admin dashboard.
 
-## Your data is stored in PostgreSQL — not on the Render server
+## Hosting on Vercel
 
-The Node backend connects to a separate **Render PostgreSQL database** using \`DATABASE_URL\`.
+This project is configured for **Vercel**. The root `server.js` exports the Express application, which Vercel deploys as one Function. Static files are in `public/`.
 
-- Products, prices, stock and product image URLs are stored in PostgreSQL.
-- Customer orders, addresses, order items and delivery statuses are stored in PostgreSQL.
-- Admin accounts and login sessions are stored securely using password hashes and PostgreSQL-backed sessions.
-- The app does not rely on the web server's local files or memory for shop data.
+1. Import this GitHub repository into Vercel.
+2. Keep the project root set to the repository root. Vercel should detect the Express app automatically.
+3. Add a persistent PostgreSQL database using a Vercel Marketplace Postgres integration (for example, Neon).
+4. Add the database connection string to Vercel as `DATABASE_URL` for Production (and Preview/Development if needed).
+5. Add `SESSION_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` as Vercel environment variables.
+6. Deploy. Database tables and sample products are created automatically on the first successful request when the database is empty.
 
-**Restarting or redeploying the Render web service does not reset products or orders.** The database is a separate service, so it remains in place while the web service is rebuilt.
+Vercel's former Vercel Postgres product is no longer available for new projects; use a Postgres provider from the Marketplace. The database is separate from Vercel deployments, so redeploying the website does not erase products or orders. The database provider's own retention and backup settings still apply.
 
-### Important: Render's free database has an expiry
+## Environment variables
 
-The current \`render.yaml\` creates a **Free Render Postgres** database to make initial testing easier. Render's free Postgres databases expire 30 days after creation. After expiry, you have a 14-day grace period to upgrade before Render deletes the database and its data.
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string from your database provider |
+| `SESSION_SECRET` | Long random secret used to sign admin sessions |
+| `ADMIN_EMAIL` | Email address for the first admin account |
+| `ADMIN_PASSWORD` | Password for the first admin account |
+| `NODE_ENV` | Set to `production` on Vercel |
 
-For a shop you intend to keep using, upgrade the database to a paid Render Postgres plan before that expiry, or connect another persistent PostgreSQL provider. Do not treat the free database as permanent storage. See [Render's free instance limits](https://render.com/docs/free).
+The initial admin is inserted only if that email does not already exist. Changing `ADMIN_PASSWORD` later will not automatically change an existing admin's password.
 
-## Deploy on Render
+## Store features
 
-1. Open [Render](https://render.com) and choose **New → Blueprint**.
-2. Connect the GitHub repository \`Rohansweb-codexamples/Crazycreations\`.
-3. Render reads \`render.yaml\` and creates the Node web service and PostgreSQL database.
-4. When prompted, set:
-   - \`ADMIN_EMAIL\`: the email address you will use to sign into the admin area.
-   - \`ADMIN_PASSWORD\`: a strong, unique password (at least 12 characters).
-5. Deploy. The app automatically creates its database tables and initial admin account on first start.
+- Customer shop at `/`
+- Admin dashboard at `/admin`
+- Order tracking at `/track`
+- Pay on delivery (no online card payments)
+- Product, stock, order, delivery-status and delivery-fee management
+- PostgreSQL-backed products, orders, admin accounts and sessions
 
-## Pages
+## Local development
 
-- \`/\` — customer shop, basket and checkout
-- \`/track\` — order tracking
-- \`/admin\` — private admin dashboard
+```bash
+npm install
+npm start
+```
 
-## Payment
-
-Checkout is **Pay on delivery**. No card payment provider is connected or requested.
-
-## Shop management
-
-- Add, edit and hide products from the Admin dashboard.
-- Product images are managed using image URLs.
-- Set the delivery fee in Admin → Settings.
-- Orders can be confirmed, prepared, marked out for delivery, delivered or cancelled.
-- Stock is checked and reduced in a database transaction when an order is placed.
-
-## Security and backups
-
-- Keep \`ADMIN_PASSWORD\`, \`SESSION_SECRET\` and \`DATABASE_URL\` private. Never put them in frontend files or commit them to GitHub.
-- Customer addresses and contact details are only returned to authenticated administrators or when the customer supplies their order code and email for tracking.
-- Back up the database regularly. Free Render Postgres databases do not include backups.
-- The initial catalogue contains sample products. Replace them in the admin dashboard before opening the shop to customers.
+Set the environment variables above in your local environment before starting the server. The app listens on port 3000 by default.
