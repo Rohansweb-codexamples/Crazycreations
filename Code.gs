@@ -1,7 +1,7 @@
 const ADMIN_PIN = 'ChangeThisPIN123';
 
 const HEADERS = {
-  Products: ['ID', 'Name', 'Description', 'Price', 'Stock', 'Image', 'Active'],
+  Products: ['ID', 'Name', 'Description', 'Price', 'Stock', 'Image', 'Active', 'On Sale', 'Sale Price'],
   Orders: ['Order ID', 'Date', 'Customer', 'Phone', 'Address', 'Items', 'Total', 'Payment', 'Status', 'Notes'],
   Settings: ['Key', 'Value']
 };
@@ -21,6 +21,9 @@ function setupStore() {
     if (sh.getLastRow() === 0) {
       sh.appendRow(headers);
       sh.setFrozenRows(1);
+    } else if (name === 'Products') {
+      const existing = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+      headers.forEach(h => { if (!existing.includes(h)) sh.getRange(1, sh.getLastColumn()+1).setValue(h); });
     }
   });
 
@@ -91,6 +94,15 @@ function handleAction_(action, p) {
     case 'saveProduct':
       verifyAdmin_(p.token);
       return saveProduct_(p);
+    case 'uploadImageStart':
+      verifyAdmin_(p.token);
+      return uploadImageStart_(p);
+    case 'uploadImageChunk':
+      verifyAdmin_(p.token);
+      return uploadImageChunk_(p);
+    case 'uploadImageFinish':
+      verifyAdmin_(p.token);
+      return uploadImageFinish_(p);
     case 'deleteProduct':
       verifyAdmin_(p.token);
       return deleteProduct_(p.id);
@@ -134,7 +146,7 @@ function publicData_() {
     settings[r.Key] = r.Value;
   });
 
-  return { products, settings };
+  return { products: products.map(p => ({...p, OnSale: p['On Sale'] === true || String(p['On Sale']).toLowerCase() === 'true', SalePrice: p['Sale Price']})), settings, topSellers: topSellers_(ss, products) };
 }
 
 function login_(pin) {
@@ -170,7 +182,9 @@ function adminData_() {
     stock: p.Stock,
     image: p.Image,
     active: p.Active !== false &&
-      String(p.Active).toLowerCase() !== 'false'
+      String(p.Active).toLowerCase() !== 'false',
+    onSale: p['On Sale'] === true || String(p['On Sale']).toLowerCase() === 'true',
+    salePrice: p['Sale Price']
   }));
 
   const orders = objects_(ss.getSheetByName('Orders')).reverse().map(o => ({
@@ -179,7 +193,7 @@ function adminData_() {
     customer: o.Customer,
     phone: o.Phone,
     address: o.Address,
-    items: o.Items,
+    items: parseOrderItems_(o.Items),
     total: o.Total,
     payment: o.Payment,
     status: o.Status,
@@ -279,21 +293,14 @@ function saveProduct_(p) {
   const id = p.id || Utilities.getUuid().substring(0, 8);
   const index = products.findIndex(x => String(x.ID) === String(id));
 
-  const row = [
-    id,
-    String(p.name).trim(),
-    String(p.description || '').trim(),
-    price,
-    stock,
-    String(p.image || '').trim(),
-    p.active !== false
-  ];
-
-  if (index >= 0) {
-    sheet.getRange(index + 2, 1, 1, 7).setValues([row]);
-  } else {
-    sheet.appendRow(row);
-  }
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  ['On Sale', 'Sale Price'].forEach(h => { if (!headers.includes(h)) { sheet.getRange(1, sheet.getLastColumn()+1).setValue(h); headers.push(h); } });
+  const image = p.imageUploadId ? CacheService.getScriptCache().get('ccup_image_'+p.imageUploadId) : String(p.image || '').trim();
+  if (p.imageUploadId && !image) throw new Error('Image upload expired. Please choose the image again.');
+  const map = {'ID':id,'Name':String(p.name).trim(),'Description':String(p.description || '').trim(),'Price':price,'Stock':stock,'Image':image,'Active':p.active !== false,'On Sale':p.onSale === true,'Sale Price':p.salePrice === '' || p.salePrice == null ? '' : Number(p.salePrice)};
+  const row = headers.map(h => map[h] ?? '');
+  if (index >= 0) sheet.getRange(index + 2, 1, 1, row.length).setValues([row]);
+  else sheet.appendRow(row);
 
   return { success: true };
 }
@@ -338,4 +345,46 @@ function saveSettings_(settings) {
   });
 
   return { success: true };
+}
+
+function parseOrderItems_(raw) {
+  if (Array.isArray(raw)) return raw;
+  try { return JSON.parse(String(raw || '[]')); } catch (e) { return []; }
+}
+function topSellers_(ss, products) {
+  const totals = {};
+  objects_(ss.getSheetByName('Orders')).forEach(order => {
+    if (String(order.Status).toLowerCase() === 'cancelled') return;
+    parseOrderItems_(order.Items).forEach(item => {
+      const id=String(item.id||''); totals[id]=(totals[id]||0)+Number(item.quantity||0);
+    });
+  });
+  return products.map(p=>({id:String(p.ID),name:p.Name,description:p.Description,price:p.Price,stock:p.Stock,image:p.Image,onSale:p['On Sale']===true||String(p['On Sale']).toLowerCase()==='true',salePrice:p['Sale Price'],sold:totals[String(p.ID)]||0}))
+    .filter(p=>p.name).sort((a,b)=>b.sold-a.sold).slice(0,8);
+}
+function uploadImageStart_(p) {
+  const id=Utilities.getUuid(), total=Number(p.totalChunks);
+  if(!Number.isInteger(total)||total<1||total>12) throw new Error('Please use an image under 24 KB after compression.');
+  CacheService.getScriptCache().put('ccup_meta_'+id,JSON.stringify({total,mime:String(p.mime||'image/jpeg')}),21600);
+  return {uploadId:id};
+}
+function uploadImageChunk_(p) {
+  const cache=CacheService.getScriptCache(), meta=cache.get('ccup_meta_'+String(p.uploadId||''));
+  if(!meta) throw new Error('Image upload expired. Please try again.');
+  const index=Number(p.index), total=JSON.parse(meta).total, data=String(p.data||'');
+  if(!Number.isInteger(index)||index<0||index>=total||data.length>3000) throw new Error('Invalid image upload part.');
+  cache.put('ccup_part_'+p.uploadId+'_'+index,data,21600);
+  return {saved:true};
+}
+function uploadImageFinish_(p) {
+  const cache=CacheService.getScriptCache(), id=String(p.uploadId||''), raw=cache.get('ccup_meta_'+id);
+  if(!raw) throw new Error('Image upload expired. Please try again.');
+  const meta=JSON.parse(raw), parts=[];
+  for(let i=0;i<meta.total;i++){const part=cache.get('ccup_part_'+id+'_'+i);if(part===null)throw new Error('An image part is missing. Please upload again.');parts.push(part);}
+  const dataUrl='data:'+meta.mime+';base64,'+parts.join('');
+  if(dataUrl.length>49000) throw new Error('Please choose a smaller image.');
+  cache.put('ccup_image_'+id,dataUrl,21600);
+  for(let i=0;i<meta.total;i++)cache.remove('ccup_part_'+id+'_'+i);
+  cache.remove('ccup_meta_'+id);
+  return {imageUploadId:id};
 }
