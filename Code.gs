@@ -1,7 +1,7 @@
 const ADMIN_PIN = 'ChangeThisPIN123';
 
 const HEADERS = {
-  Products: ['ID', 'Name', 'Description', 'Price', 'Stock', 'Image', 'Active', 'On Sale', 'Sale Price'],
+  Products: ['ID', 'Name', 'Description', 'Price', 'Stock', 'Image', 'Active', 'On Sale', 'Sale Price', 'Featured'],
   Orders: ['Order ID', 'Date', 'Customer', 'Phone', 'Address', 'Items', 'Total', 'Payment', 'Status', 'Notes'],
   Settings: ['Key', 'Value']
 };
@@ -146,7 +146,7 @@ function publicData_() {
     settings[r.Key] = r.Value;
   });
 
-  return { products: products.map(p => ({...p, OnSale: p['On Sale'] === true || String(p['On Sale']).toLowerCase() === 'true', SalePrice: p['Sale Price']})), settings, topSellers: topSellers_(ss, products) };
+  return { products: products.map(p => ({...p, OnSale: p['On Sale'] === true || String(p['On Sale']).toLowerCase() === 'true', SalePrice: p['Sale Price'], Featured: p['Featured'] === true || String(p['Featured']).toLowerCase() === 'true'})), settings, topSellers: topSellers_(ss, products) };
 }
 
 function login_(pin) {
@@ -184,7 +184,8 @@ function adminData_() {
     active: p.Active !== false &&
       String(p.Active).toLowerCase() !== 'false',
     onSale: p['On Sale'] === true || String(p['On Sale']).toLowerCase() === 'true',
-    salePrice: p['Sale Price']
+    salePrice: p['Sale Price'],
+    featured: p['Featured'] === true || String(p['Featured']).toLowerCase() === 'true'
   }));
 
   const orders = objects_(ss.getSheetByName('Orders')).reverse().map(o => ({
@@ -299,10 +300,10 @@ function saveProduct_(p) {
   const index = products.findIndex(x => String(x.ID) === String(id));
 
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  ['On Sale', 'Sale Price'].forEach(h => { if (!headers.includes(h)) { sheet.getRange(1, sheet.getLastColumn()+1).setValue(h); headers.push(h); } });
+  ['On Sale', 'Sale Price', 'Featured'].forEach(h => { if (!headers.includes(h)) { sheet.getRange(1, sheet.getLastColumn()+1).setValue(h); headers.push(h); } });
   const image = p.imageUploadId ? CacheService.getScriptCache().get('ccup_image_'+p.imageUploadId) : String(p.image || '').trim();
   if (p.imageUploadId && !image) throw new Error('Image upload expired. Please choose the image again.');
-  const map = {'ID':id,'Name':String(p.name).trim(),'Description':String(p.description || '').trim(),'Price':price,'Stock':stock,'Image':image,'Active':p.active !== false,'On Sale':p.onSale === true,'Sale Price':p.salePrice === '' || p.salePrice == null ? '' : Number(p.salePrice)};
+  const map = {'ID':id,'Name':String(p.name).trim(),'Description':String(p.description || '').trim(),'Price':price,'Stock':stock,'Image':image,'Active':p.active !== false,'On Sale':p.onSale === true,'Sale Price':p.salePrice === '' || p.salePrice == null ? '' : Number(p.salePrice),'Featured':p.featured === true};
   const row = headers.map(h => map[h] ?? '');
   if (index >= 0) sheet.getRange(index + 2, 1, 1, row.length).setValues([row]);
   else sheet.appendRow(row);
@@ -364,7 +365,7 @@ function topSellers_(ss, products) {
       const id=String(item.id||''); totals[id]=(totals[id]||0)+Number(item.quantity||0);
     });
   });
-  return products.map(p=>({id:String(p.ID),name:p.Name,description:p.Description,price:p.Price,stock:p.Stock,image:p.Image,onSale:p['On Sale']===true||String(p['On Sale']).toLowerCase()==='true',salePrice:p['Sale Price'],sold:totals[String(p.ID)]||0}))
+  return products.map(p=>({id:String(p.ID),name:p.Name,description:p.Description,price:p.Price,stock:p.Stock,image:p.Image,onSale:p['On Sale']===true||String(p['On Sale']).toLowerCase()==='true',salePrice:p['Sale Price'],featured:p.Featured===true||String(p.Featured).toLowerCase()==='true',sold:totals[String(p.ID)]||0}))
     .filter(p=>p.name && p.Active !== false && String(p.Active).toLowerCase() !== 'false').sort((a,b)=>b.sold-a.sold).slice(0,8);
 }
 function uploadImageStart_(p) {
