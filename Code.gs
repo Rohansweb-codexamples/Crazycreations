@@ -238,7 +238,10 @@ function placeOrder_(p) {
 
       const quantity = quantities[id];
       const stock = Number(product.Stock);
-      const price = Number(product.Price);
+      const regularPrice = Number(product.Price);
+      const isSale = product['On Sale'] === true || String(product['On Sale']).toLowerCase() === 'true';
+      const salePrice = Number(product['Sale Price']);
+      const price = isSale && Number.isFinite(salePrice) && salePrice > 0 ? salePrice : regularPrice;
 
       if (stock < quantity) throw new Error('Not enough stock for ' + product.Name);
       if (!Number.isFinite(price) || price < 0) throw new Error('Invalid product price.');
@@ -364,7 +367,7 @@ function topSellers_(ss, products) {
 }
 function uploadImageStart_(p) {
   const id=Utilities.getUuid(), total=Number(p.totalChunks);
-  if(!Number.isInteger(total)||total<1||total>12) throw new Error('Please use an image under 24 KB after compression.');
+  if(!Number.isInteger(total)||total<1||total>30) throw new Error('Please use an image under 24 KB after compression.');
   CacheService.getScriptCache().put('ccup_meta_'+id,JSON.stringify({total,mime:String(p.mime||'image/jpeg')}),21600);
   return {uploadId:id};
 }
@@ -372,7 +375,7 @@ function uploadImageChunk_(p) {
   const cache=CacheService.getScriptCache(), meta=cache.get('ccup_meta_'+String(p.uploadId||''));
   if(!meta) throw new Error('Image upload expired. Please try again.');
   const index=Number(p.index), total=JSON.parse(meta).total, data=String(p.data||'');
-  if(!Number.isInteger(index)||index<0||index>=total||data.length>3000) throw new Error('Invalid image upload part.');
+  if(!Number.isInteger(index)||index<0||index>=total||data.length>1300) throw new Error('Invalid image upload part.');
   cache.put('ccup_part_'+p.uploadId+'_'+index,data,21600);
   return {saved:true};
 }
