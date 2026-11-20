@@ -366,7 +366,7 @@ function topSellers_(ss, products) {
     });
   });
   return products.map(p=>({id:String(p.ID),name:p.Name,description:p.Description,price:p.Price,stock:p.Stock,image:p.Image,onSale:p['On Sale']===true||String(p['On Sale']).toLowerCase()==='true',salePrice:p['Sale Price'],featured:p.Featured===true||String(p.Featured).toLowerCase()==='true',sold:totals[String(p.ID)]||0}))
-    .filter(p=>p.name && p.Active !== false && String(p.Active).toLowerCase() !== 'false').sort((a,b)=>b.sold-a.sold).slice(0,8);
+    .filter(p=>p.name && p.Active !== false && String(p.Active).toLowerCase() !== 'false').sort((a,b)=>Number(b.featured)-Number(a.featured)||b.sold-a.sold).slice(0,8);
 }
 function uploadImageStart_(p) {
   const id=Utilities.getUuid(), total=Number(p.totalChunks);
